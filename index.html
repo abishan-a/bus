@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Where My Bus — Real‑Time Bus Finder</title>
+
+  <style>
+    :root{
+      --bg: #0b0f14; --surface: rgba(255,255,255,.06); --border: rgba(255,255,255,.12);
+      --text: #e8eef6; --muted: #aac0d4; --accent: #ff4757; --radius: 18px; --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --bg-gradient: linear-gradient(180deg,#0b0f14 0%,#0e1520 60%,#0b1220 100%);
+    }
+    [data-theme="light"]{
+      --bg: #f5f7fa; --surface: rgba(0,0,0,.04); --border: rgba(0,0,0,.12);
+      --text: #1a1f2e; --muted: #5a6c7d; --accent: #ff4757; --shadow: 0 10px 30px rgba(0,0,0,.15);
+      --bg-gradient: linear-gradient(180deg,#f5f7fa 0%,#e8ecf1 60%,#dde3ea 100%);
+    }
+    *{box-sizing:border-box;}
+    html, body{height:100%; margin:0; font-family:ui-sans-serif, system-ui, Segoe UI, Roboto, Arial; background: var(--bg-gradient); color: var(--text); transition: background 0.3s ease, color 0.3s ease;}
+    .nav{position: sticky; top:0; z-index: 1000; display:flex; align-items:center; justify-content:space-between; padding: 12px 16px; border-bottom:1px solid var(--border); background: rgba(15,20,30,.7); backdrop-filter: blur(10px); transition: background 0.3s ease, border-color 0.3s ease;}
+    [data-theme="light"] .nav{background: rgba(255,255,255,.85);}
+    .brand{ display:flex; align-items:center; gap:10px; font-weight:700; font-size: 1rem }
+    .brand .logo{ font-size:22px }
+    .nav-controls{ display:flex; align-items:center; gap:12px }
+    .theme-toggle{ background: var(--surface); border:1px solid var(--border); color:var(--text); padding:8px 12px; border-radius:14px; cursor:pointer; font-size: 1.2rem; min-height: 44px; min-width: 44px; display:flex; align-items:center; justify-content:center; transition: all 0.3s ease; touch-action: manipulation; box-shadow: var(--shadow) }
+    .theme-toggle:hover{ background: var(--accent); color:#fff; transform: scale(1.05); box-shadow: 0 4px 15px rgba(255,71,87,.4); }
+    .theme-toggle:active{ transform: scale(0.95); }
+    .links{ display:flex; gap:8px; flex-wrap: wrap }
+    .tab{ border:1px solid var(--border); background: transparent; color:var(--text); padding:8px 12px; border-radius:14px; cursor:pointer; font-size: 0.9rem; min-height: 44px; touch-action: manipulation }
+    .tab.active{ background: var(--accent); color:#fff }
+
+    .layout{ display:grid; grid-template-columns: 360px 1fr; gap:16px; padding:16px }
+
+    .sidebar{ display:flex; flex-direction:column; gap:16px }
+    .card{ background: var(--surface); border:1px solid var(--border); border-radius: var(--radius); padding:14px; box-shadow: var(--shadow); transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease }
+    .card h2{ margin:0 0 10px; font-size:1.1rem }
+    .muted{ color: var(--muted) }
+    .row{ display:flex; align-items:center; gap:8px; flex-wrap: wrap }
+    .grid{ display:grid; grid-template-columns: 1fr 1fr; gap:10px }
+    label{ display:flex; flex-direction:column; gap:6px; font-size:.95rem }
+    input, select{ padding:10px 12px; border-radius:12px; border:1px solid var(--border); background: rgba(255,255,255,.06); color:var(--text); outline:none; font-size: 16px; min-height: 44px; touch-action: manipulation; transition: background 0.3s ease, border-color 0.3s ease, color 0.3s ease }
+    [data-theme="light"] input, [data-theme="light"] select{ background: rgba(255,255,255,.8); }
+    .btn{ border:1px solid var(--border); background: var(--accent); color:#fff; padding:9px 14px; border-radius: 14px; cursor:pointer; font-weight:600; min-height: 44px; touch-action: manipulation; font-size: 0.95rem }
+    .btn.ghost{ background: transparent; color: var(--text) }
+    .btn:disabled{ opacity:.6; cursor:not-allowed }
+
+    .results{ list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:10px }
+    .result{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px; border:1px solid var(--border); border-radius:14px; background: rgba(255,255,255,.04); transition: background 0.3s ease, border-color 0.3s ease }
+    [data-theme="light"] .result{ background: rgba(0,0,0,.02); }
+    .badge{ padding:4px 8px; border-radius:12px; border:1px solid var(--border); color:var(--muted) }
+
+    .mapwrap{ position:relative; height: calc(100vh - 220px); min-height: 420px }
+    #map{ position:absolute; inset:0; border-radius:18px; border:1px solid var(--border); overflow:hidden }
+    @media (max-width: 960px){
+      .mapwrap{ height: calc(100vh - 180px); min-height: 300px }
+    }
+    .legend{ position:absolute; bottom:10px; left:10px; display:flex; gap:10px }
+    .dot{ width:12px; height:12px; border-radius:50%; display:inline-block; background: var(--c) }
+
+    .footer{ text-align:center; color:var(--muted); padding: 18px; border-top:1px solid var(--border); margin-top: 8px }
+    .small{ font-size:.9rem }
+    .eta{ padding:8px 10px; border-radius:12px; background: rgba(255,255,255,.05); border:1px solid var(--border) }
+
+
+
+
+
+    /* Responsive adjustments */
+@media (max-width: 960px){
+  .layout{
+    grid-template-columns: 1fr;
+    padding: 12px;
+    gap: 12px;
+  }
+  .sidebar{
+    order: 2;
+    width: 100%;
+  }
+  .mapwrap{
+    order: 1;
+    height: 60vh;
+    min-height: 300px;
+  }
+  .grid{
+    grid-template-columns: 1fr;
+  }
+  .row{
+    flex-direction: column;
+    align-items: stretch;
+  }
+  input, select, .btn{
+    width: 100%;
+  }
+  .card{
+    padding: 12px;
+  }
+  .card h2{
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 600px){
+  .nav{
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px 12px;
+  }
+  .brand{
+    font-size: 0.9rem;
+  }
+  .nav-controls{
+    width: 100%;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .links{
+    justify-content: center;
+    width: 100%;
+    gap: 6px;
+  }
+  .theme-toggle{
+    align-self: flex-end;
+  }
+  .tab{
+    flex: 1;
+    text-align: center;
+    padding: 10px 8px;
+    font-size: 0.85rem;
+    min-width: 0;
+  }
+  .mapwrap{
+    height: 50vh;
+    min-height: 250px;
+  }
+  .layout{
+    padding: 8px;
+    gap: 8px;
+  }
+  .card{
+    padding: 10px;
+  }
+  .results{
+    gap: 8px;
+  }
+  .result{
+    padding: 12px;
+    flex-wrap: wrap;
+  }
+  .result .row{
+    width: 100%;
+    margin-top: 8px;
+  }
+  .result .row .btn{
+    flex: 1;
+  }
+  .legend{
+    bottom: 8px;
+    left: 8px;
+    padding: 8px;
+    font-size: 0.85rem;
+  }
+  .footer{
+    padding: 12px;
+    font-size: 0.85rem;
+  }
+}
+
+@media (max-width: 400px){
+  .nav{
+    padding: 8px;
+  }
+  .tab{
+    font-size: 0.75rem;
+    padding: 8px 6px;
+  }
+  .mapwrap{
+    height: 45vh;
+    min-height: 200px;
+  }
+  .card h2{
+    font-size: 0.95rem;
+  }
+  label, .small{
+    font-size: 0.85rem;
+  }
+}
+
+  </style>
+</head>
+<body>
+  <header class="nav">
+    <div class="brand"><span class="logo">🚌</span> <span>Where <b>My Bus</b></span></div>
+    <div class="nav-controls">
+      <div class="links">
+        <button class="tab active" data-tab="map">Map</button>
+        <button class="tab" data-tab="finder">Finder</button>
+        <button class="tab" data-tab="register">Register</button>
+        <button class="tab" data-tab="driver">Driver Mode</button>
+      </div>
+      <button class="theme-toggle" id="themeToggle" title="Toggle theme">🌙</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar">
+      <section class="card" data-panel="finder" hidden>
+        <h2>Find a Bus</h2>
+        <div class="row">
+          <input id="searchInput" placeholder="Search by route or bus number" />
+          <button class="btn" id="searchBtn">Search</button>
+          <button class="btn ghost" id="clearBtn">Clear</button>
+        </div>
+        <label class="row"><input type="checkbox" id="liveOnly" checked> <span class="small">Live only (last 5 min)</span></label>
+        <ul class="results" id="resultsList"></ul>
+        <div class="card" style="margin-top:10px">
+          <h2>ETA to You</h2>
+          <p class="muted small">Select a bus in results, then click <b>📍 My Location</b>.</p>
+          <div class="row">
+            <button class="btn ghost" id="myLocationBtn">📍 My Location</button>
+          </div>
+          <div id="etaBox" class="eta" style="margin-top:8px">No bus selected.</div>
+        </div>
+      </section>
+
+      <section class="card" data-panel="register" hidden>
+        <h2>Register a Bus</h2>
+        <div class="grid">
+          <label>Bus Number
+            <input id="regBusId" placeholder="e.g., NB-1234" />
+          </label>
+          <label>Route
+            <input id="regRoute" placeholder="e.g., 138" />
+          </label>
+        </div>
+        <div class="grid" style="margin-top:8px">
+          <label>Color
+            <input id="regColor" type="color" value="#ff4757" />
+          </label>
+          <label>Avg Speed (km/h)
+            <input id="regSpeed" type="number" min="5" max="120" step="1" value="28" />
+          </label>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn" id="saveBusBtn">Save Bus</button>
+        </div>
+        <p class="muted small" style="margin-top:8px">After saving, ask the driver to use <b>Driver Mode</b> to share GPS.</p>
+      </section>
+
+      <section class="card" data-panel="driver" hidden>
+        <h2>Driver Mode</h2>
+        <p class="muted small">Enter your bus ID and start sharing live GPS. (Requires HTTPS or localhost.)</p>
+        <div class="grid">
+          <label>Bus ID
+            <input id="drvBusId" placeholder="e.g., NB-1234" />
+          </label>
+          <label>Route (optional)
+            <input id="drvRoute" placeholder="e.g., 138" />
+          </label>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <button class="btn" id="startDriverBtn">Start</button>
+          <button class="btn ghost" id="stopDriverBtn" disabled>Stop</button>
+        </div>
+        <div id="driverStatus" class="muted small" style="margin-top:8px">Inactive.</div>
+      </section>
+
+      <section class="card">
+        <h2>Tips</h2>
+        <ul class="small" style="margin:0; padding-left:18px">
+          <li>Use <b>Register</b> to add bus meta + starting position.</li>
+          <li>Use <b>Driver Mode</b> on the driver phone to broadcast live GPS.</li>
+          <li>All viewers see buses update in real time.</li>
+        </ul>
+      </section>
+    </aside>
+
+    <section class="mapwrap" data-panel="map">
+      <div id="map"></div>
+      <div class="legend card">
+        <div><span class="dot" style="--c:#ff4757"></span>Active</div>
+        <div><span class="dot" style="--c:#999"></span>Offline</div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">© <span id="year"></span> Where My Bus • Google Maps + Firebase</footer>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+  <script>
+    const $ = (sel, root=document)=>root.querySelector(sel);
+    const $$ = (sel, root=document)=>[...root.querySelectorAll(sel)];
+    $('#year').textContent = new Date().getFullYear();
+
+    // Theme Toggle
+    function getSystemTheme(){
+      return window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+    }
+    function initTheme(){
+      const savedTheme = localStorage.getItem('theme') || getSystemTheme();
+      document.documentElement.setAttribute('data-theme', savedTheme);
+      updateThemeIcon(savedTheme);
+      updateMapTheme(savedTheme);
+    }
+    function toggleTheme(){
+      const currentTheme = document.documentElement.getAttribute('data-theme');
+      const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+      updateThemeIcon(newTheme);
+      updateMapTheme(newTheme);
+    }
+    function updateThemeIcon(theme){
+      const icon = $('#themeToggle');
+      if(icon) icon.textContent = theme === 'light' ? '🌙' : '☀️';
+    }
+    function updateMapTheme(theme){
+      if(!map) return;
+      const styles = theme === 'light' ? [] : [
+        {elementType: 'geometry', stylers: [{color: '#242f3e'}]},
+        {elementType: 'labels.text.stroke', stylers: [{color: '#242f3e'}]},
+        {elementType: 'labels.text.fill', stylers: [{color: '#746855'}]},
+        {featureType: 'water', elementType: 'geometry', stylers: [{color: '#17263c'}]},
+        {featureType: 'road', elementType: 'geometry', stylers: [{color: '#38414e'}]},
+        {featureType: 'road', elementType: 'geometry.stroke', stylers: [{color: '#212a37'}]},
+        {featureType: 'road', elementType: 'labels.text.fill', stylers: [{color: '#9ca5b3'}]},
+        {featureType: 'poi', elementType: 'geometry', stylers: [{color: '#263238'}]},
+        {featureType: 'poi', elementType: 'labels.text.fill', stylers: [{color: '#757575'}]},
+        {featureType: 'administrative', elementType: 'labels.text.fill', stylers: [{color: '#9e9e9e'}]}
+      ];
+      map.setOptions({styles: styles});
+    }
+    $('#themeToggle').onclick = toggleTheme;
+    initTheme();
+    
+    // Listen for system theme changes
+    if(window.matchMedia){
+      window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', (e)=>{
+        if(!localStorage.getItem('theme')){
+          const newTheme = e.matches ? 'light' : 'dark';
+          document.documentElement.setAttribute('data-theme', newTheme);
+          updateThemeIcon(newTheme);
+          updateMapTheme(newTheme);
+        }
+      });
+    }
+
+    // Firebase config
+    const firebaseConfig = {
+      apiKey: "AIzaSyDYquhSZDOa_rKXarRQNE-p3dJX2KsgQiE",
+      authDomain: "busfind-51719.firebaseapp.com",
+      databaseURL: "https://busfind-51719-default-rtdb.firebaseio.com",
+      projectId: "busfind-51719",
+      storageBucket: "busfind-51719.appspot.com",
+      messagingSenderId: "199032407355",
+      appId: "1:199032407355:web:289f1bdb7a4a586ea9e31e"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // Google Maps
+    let map, markers={}, infoWindows={}, busData={};
+    function initMap(){
+      const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+      const mapStyles = currentTheme === 'light' ? [] : [
+        {elementType: 'geometry', stylers: [{color: '#242f3e'}]},
+        {elementType: 'labels.text.stroke', stylers: [{color: '#242f3e'}]},
+        {elementType: 'labels.text.fill', stylers: [{color: '#746855'}]},
+        {featureType: 'water', elementType: 'geometry', stylers: [{color: '#17263c'}]},
+        {featureType: 'road', elementType: 'geometry', stylers: [{color: '#38414e'}]},
+        {featureType: 'road', elementType: 'geometry.stroke', stylers: [{color: '#212a37'}]},
+        {featureType: 'road', elementType: 'labels.text.fill', stylers: [{color: '#9ca5b3'}]},
+        {featureType: 'poi', elementType: 'geometry', stylers: [{color: '#263238'}]},
+        {featureType: 'poi', elementType: 'labels.text.fill', stylers: [{color: '#757575'}]},
+        {featureType: 'administrative', elementType: 'labels.text.fill', stylers: [{color: '#9e9e9e'}]}
+      ];
+      map = new google.maps.Map(document.getElementById('map'), {
+        center: {lat:8.7600,lng:80.5000}, 
+        zoom:13,
+        styles: mapStyles
+      });
+
+      // Firebase listener
+      const ref = db.ref('buses');
+      ref.on('child_added', snap=>{
+        const id = snap.key;
+        const data = snap.val();
+        busData[id] = data;
+        addOrUpdateMarker(id, data);
+      });
+      ref.on('child_changed', snap=>{
+        const id = snap.key;
+        const data = snap.val();
+        busData[id] = data;
+        addOrUpdateMarker(id, data);
+      });
+      ref.on('child_removed', snap=>{
+        const id = snap.key;
+        if(markers[id]) markers[id].setMap(null);
+        delete markers[id];
+        delete infoWindows[id];
+        delete busData[id];
+      });
+    }
+
+    function addOrUpdateMarker(id, bus){
+      const pos = {lat:Number(bus.lat), lng:Number(bus.lng)};
+      const live = (Date.now() - (bus.updatedAt||0)) < 5*60*1000;
+      const color = bus.color || '#ff4757';
+      const content = `<b>${bus.nickname||id}</b><br>Route: ${bus.route||'-'}<br><span style="color:#aac0d4">${live?'Live':'Offline'} · ${(bus.speed||'—')} km/h</span>`;
+      if(markers[id]){
+        markers[id].setPosition(pos);
+        infoWindows[id].setContent(content);
+      } else {
+        const marker = new google.maps.Marker({
+          position: pos,
+          map: map,
+          icon:{
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 8,
+            fillColor: color,
+            fillOpacity: 1,
+            strokeWeight: 2,
+            strokeColor: '#121826'
+          }
+        });
+        const infowindow = new google.maps.InfoWindow({content});
+        marker.addListener('click', ()=>infowindow.open(map, marker));
+        markers[id]=marker;
+        infoWindows[id]=infowindow;
+      }
+    }
+
+    // Tabs
+    $$('.tab').forEach(btn=>btn.addEventListener('click', ()=>{
+      $$('.tab').forEach(b=>b.classList.remove('active')); btn.classList.add('active');
+      const tab = btn.dataset.tab;
+      $$('[data-panel]').forEach(p=>p.hidden = p.dataset.panel!==tab);
+      if(tab==='map' && map){
+        setTimeout(()=>google.maps.event.trigger(map,'resize'), 100);
+      }
+      if(tab==='finder'){
+        updateResults();
+      }
+    }));
+
+    // Finder
+    let selectedBusId=null;
+    function updateResults(){
+      const q = ($('#searchInput').value||'').toLowerCase().trim();
+      const liveOnly = $('#liveOnly').checked;
+      const listEl = $('#resultsList'); listEl.innerHTML='';
+      
+      const allBuses = Object.keys(busData).map(id=>({
+        id,
+        data: busData[id]
+      }));
+      
+      const filtered = allBuses.filter(b=>{
+        const isLive = (Date.now() - (b.data.updatedAt||0)) < 5*60*1000;
+        if(liveOnly && !isLive) return false;
+        const matchesSearch = !q || 
+          b.id.toLowerCase().includes(q) || 
+          (b.data.route && b.data.route.toLowerCase().includes(q)) ||
+          (b.data.nickname && b.data.nickname.toLowerCase().includes(q));
+        return matchesSearch;
+      });
+      
+      if(!filtered.length){ 
+        const li=document.createElement('li'); 
+        li.className='result muted'; 
+        li.textContent='No buses match.'; 
+        listEl.appendChild(li); 
+        return; 
+      }
+      
+      filtered.forEach(b=>{
+        const isLive = (Date.now() - (b.data.updatedAt||0)) < 5*60*1000;
+        const li = document.createElement('li'); 
+        li.className='result';
+        li.innerHTML = `<div>
+                          <div style="font-weight:700">${b.data.nickname || b.id}</div>
+                          <div class="small muted">Route: ${b.data.route || '-'} ${isLive ? '• Live' : '• Offline'}</div>
+                        </div>
+                        <div class="row">
+                          <button class="btn ghost" data-a="view">View</button>
+                          <button class="btn ghost" data-a="eta">ETA</button>
+                        </div>`;
+        li.querySelector('[data-a="view"]').onclick=()=>{selectedBusId=b.id; focusBus(b.id);};
+        li.querySelector('[data-a="eta"]').onclick=()=>{selectedBusId=b.id; estimateETA(b.id);};
+        listEl.appendChild(li);
+      });
+    }
+    $('#searchBtn').onclick=updateResults;
+    $('#clearBtn').onclick=()=>{ $('#searchInput').value=''; updateResults(); };
+    $('#searchInput').addEventListener('input', updateResults);
+    $('#searchInput').addEventListener('keypress', (e)=>{ if(e.key==='Enter') updateResults(); });
+
+    function focusBus(id){
+      selectedBusId=id;
+      const marker=markers[id]; if(marker) map.setCenter(marker.getPosition());
+    }
+
+    function kmDistance(a,b){
+      const R=6371; const toRad=d=>d*Math.PI/180;
+      const dLat=toRad(b.lat-a.lat); const dLng=toRad(b.lng-a.lng);
+      const s=Math.sin(dLat/2)**2+Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(dLng/2)**2;
+      return 2*R*Math.asin(Math.sqrt(s));
+    }
+
+    function estimateETA(id){
+      if(!navigator.geolocation){ alert('Geolocation not supported'); return; }
+      navigator.geolocation.getCurrentPosition(pos=>{
+        const me={lat:pos.coords.latitude,lng:pos.coords.longitude};
+        const marker=markers[id]; 
+        if(!marker){ alert('Bus not found'); return; }
+        const busDataItem = busData[id];
+        if(!busDataItem){ alert('Bus data not available'); return; }
+        const busPos = marker.getPosition();
+        const d = kmDistance({lat:me.lat,lng:me.lng},{lat:busPos.lat(),lng:busPos.lng()});
+        const speed = busDataItem.speed || 28;
+        const t = speed > 0 ? d/speed*60 : 0;
+        $('#etaBox').textContent=`${t.toFixed(0)} min away (${d.toFixed(2)} km)`;
+        selectedBusId = id;
+      }, err=>{
+        alert('Unable to get your location. Please enable location permissions.');
+      });
+    }
+
+    $('#myLocationBtn').onclick=()=>{ if(!selectedBusId){ alert('Select a bus first'); return; } estimateETA(selectedBusId); };
+
+    // Register bus with auto location
+    $('#saveBusBtn').onclick=()=>{
+      const id=$('#regBusId').value.trim(); if(!id){ alert('Enter Bus ID'); return; }
+      if(!navigator.geolocation){ alert('No geolocation'); return; }
+      navigator.geolocation.getCurrentPosition(pos=>{
+        const lat=pos.coords.latitude, lng=pos.coords.longitude;
+        db.ref('buses/'+id).set({
+          nickname:id,
+          route:$('#regRoute').value.trim(),
+          color:$('#regColor').value,
+          speed:Number($('#regSpeed').value),
+          lat,lng,
+          updatedAt: Date.now()
+        });
+        alert('Bus saved'); $('#regBusId').value=''; $('#regRoute').value='';
+      }, err=>{
+        alert('Unable to get location. Please enable location permissions.');
+      });
+    };
+
+    // Driver Mode
+    let watchId=null;
+    $('#startDriverBtn').onclick=()=>{
+      const id=$('#drvBusId').value.trim(); if(!id){ alert('Enter Bus ID'); return; }
+      const route=$('#drvRoute').value.trim();
+      if(!navigator.geolocation){ alert('No geolocation'); return; }
+      watchId=navigator.geolocation.watchPosition(pos=>{
+        const lat=pos.coords.latitude, lng=pos.coords.longitude;
+        const update = {lat,lng,updatedAt:Date.now()};
+        if(route) update.route = route;
+        db.ref('buses/'+id).update(update);
+        $('#driverStatus').textContent=`Sending live location for ${id}…`;
+      },err=>{ console.log(err); alert('Location error'); },{enableHighAccuracy:true,maximumAge:1000});
+      $('#startDriverBtn').disabled=true; $('#stopDriverBtn').disabled=false;
+    };
+    $('#stopDriverBtn').onclick=()=>{
+      if(watchId!==null){ navigator.geolocation.clearWatch(watchId); watchId=null; }
+      $('#driverStatus').textContent='Inactive'; $('#startDriverBtn').disabled=false; $('#stopDriverBtn').disabled=true;
+    };
+
+
+    
+  </script>
+
+  <script async defer
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAJmQ3USRg7OUIZv61YbLiYpcAl_t-nRak&callback=initMap">
+  </script>
+</body>
+</html>
